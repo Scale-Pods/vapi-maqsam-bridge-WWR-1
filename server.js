@@ -8,52 +8,42 @@ app.use(express.json());
 // 🔧 CONFIG
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
+const ASSISTANT_ID = process.env.VAPI_ASSISTANT_ID;
 
-// 🔐 DB CONFIG (Update these if needed)
-const TABLES_TO_SEARCH = [
-  { table: "master_leads", nameColumn: "Name", phoneColumn: "Phone" },
-  { table: "1731_leads", nameColumn: "name", phoneColumn: "contactNo" },
-  { table: "danube_event", nameColumn: "Name", phoneColumn: "Phone" }
-];
+// 🔐 DB CONFIG
+const TABLE = "outreach_table";
+const NAME_COLUMN = "full_name";
+const PHONE_COLUMN = "phone";
+const SELECT_COLUMNS = `${NAME_COLUMN}, ${PHONE_COLUMN}, property_type, property_category, crm_id`;
 
 // 🔐 AUTH
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
- * Optimized search across multiple tables (nr_wf, nurture, followup, nurture)
- * Designed for 10+ concurrent calls and high stability.
+ * Looks up a lead in outreach_table by phone number.
+ * Vapi sends E.164 numbers; outreach_table.phone is stored the same way (with +),
+ * so the incoming number is stripped to digits then re-prefixed with + before matching.
  */
-async function getCustomerName(phoneNumber) {
+async function getLead(phoneNumber) {
   if (!phoneNumber) return null;
 
   try {
-    // 🔥 Normalize incoming number
-    const cleaned = phoneNumber.replace(/\D/g, "");
+    const cleaned = "+" + phoneNumber.replace(/\D/g, "");
     console.log("CLEANED INPUT:", cleaned);
 
-    const searchPromises = TABLES_TO_SEARCH.map(async ({ table, nameColumn, phoneColumn }) => {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select(SELECT_COLUMNS)
+      .eq(PHONE_COLUMN, cleaned)
+      .limit(1)
+      .maybeSingle();
 
-      const { data, error } = await supabase
-        .from(table)
-        .select(nameColumn)
-        .eq(phoneColumn, cleaned) // ✅ use cleaned number
-        .limit(1)
-        .maybeSingle();
+    if (error) {
+      console.error(`[DB Error] ${TABLE}:`, error.message);
+      return null;
+    }
 
-      if (error) {
-        console.error(`[DB Error] ${table}:`, error.message);
-        return null;
-      }
-
-      return data ? data[nameColumn] : null;
-    });
-
-    const results = await Promise.all(searchPromises);
-
-    const foundName = results.find(name => name != null);
-
-   return foundName ? foundName.trim().split(' ')[0] : null;
-
+    return data || null;
   } catch (err) {
     console.error("[Critical Error]:", err);
     return null;
@@ -66,31 +56,32 @@ app.post("/assistant-selector", async (req, res) => {
       const phoneNumber = req.body.message?.call?.customer?.number;
       console.log(`[${new Date().toISOString()}] Incoming Request: ${phoneNumber}`);
 
-      // Start fetching the name immediately
-       // 🔥 REPLACE THIS PART ONLY
-      const customerName = await Promise.race([
-        getCustomerName(phoneNumber),
+      const lead = await Promise.race([
+        getLead(phoneNumber),
         new Promise(resolve => setTimeout(() => resolve(null), 2000))
       ]);
-      console.log(`[Result] Phone: ${phoneNumber} -> Name: ${customerName || "Not Found"}`);
+      const firstName = lead?.[NAME_COLUMN] ? lead[NAME_COLUMN].trim().split(" ")[0] : null;
+      console.log(`[Result] Phone: ${phoneNumber} -> Name: ${firstName || "Not Found"}`);
 
       res.json({
-        assistantId: "70f05e16-18f3-4f6e-964a-f47b299c6c1d",
+        assistantId: ASSISTANT_ID,
         assistantOverrides: {
           variableValues: {
-            customerName: customerName || "there"
+            customerName: firstName || "there",
+            propertyType: lead?.property_type || "",
+            propertyCategory: lead?.property_category || "",
+            crmId: lead?.crm_id || ""
           }
         }
       });
     } else {
-      // Not an assistant-request, but we should still respond to keep Vapi happy
       res.status(200).send("OK");
     }
   } catch (err) {
     console.error("[Server Error]:", err);
 
     res.json({
-      assistantId: "70f05e16-18f3-4f6e-964a-f47b299c6c1d",
+      assistantId: ASSISTANT_ID,
       assistantOverrides: {
         variableValues: {
           customerName: "there"
@@ -104,4 +95,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
