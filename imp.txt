@@ -1,0 +1,10 @@
+inside the vapi server, 
+
+Server URL
+The URL of your Vapi server.
+
+https://vapi-maqsam-supabase-bridge-507203152830.europe-west1.run.app/assistant-selector
+
+Assistant
+The assistant that answers inbound calls to this number.
+it should be blank " ----------------------"
