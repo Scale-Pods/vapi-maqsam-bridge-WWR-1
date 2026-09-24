@@ -21,14 +21,14 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Looks up a lead in outreach_table by phone number.
- * Vapi sends E.164 numbers; outreach_table.phone is stored the same way (with +),
- * so the incoming number is stripped to digits then re-prefixed with + before matching.
+ * outreach_table.phone is stored as digits only (no +), so the incoming
+ * Vapi number is stripped of all non-digit characters before matching.
  */
 async function getLead(phoneNumber) {
   if (!phoneNumber) return null;
 
   try {
-    const cleaned = "+" + phoneNumber.replace(/\D/g, "");
+    const cleaned = phoneNumber.replace(/\D/g, "");
     console.log("CLEANED INPUT:", cleaned);
 
     const { data, error } = await supabase
