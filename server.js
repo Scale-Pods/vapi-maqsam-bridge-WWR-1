@@ -3,7 +3,7 @@ const express = require("express");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 
 // 🔧 CONFIG
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -14,7 +14,7 @@ const ASSISTANT_ID = process.env.VAPI_ASSISTANT_ID;
 const TABLE = "outreach_table";
 const NAME_COLUMN = "full_name";
 const PHONE_COLUMN = "phone";
-const SELECT_COLUMNS = `${NAME_COLUMN}, ${PHONE_COLUMN}, property_type, property_category, crm_id`;
+const SELECT_COLUMNS = `${NAME_COLUMN}, ${PHONE_COLUMN}, property_type, property_category, crm_id, lead_id`;
 
 // 🔐 AUTH
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -62,6 +62,7 @@ app.post("/assistant-selector", async (req, res) => {
       ]);
       const firstName = lead?.[NAME_COLUMN] ? lead[NAME_COLUMN].trim().split(" ")[0] : null;
       console.log(`[Result] Phone: ${phoneNumber} -> Name: ${firstName || "Not Found"}`);
+      console.log("[Lead Data]", JSON.stringify(lead));
 
       res.json({
         assistantId: ASSISTANT_ID,
@@ -70,7 +71,8 @@ app.post("/assistant-selector", async (req, res) => {
             customerName: firstName || "there",
             propertyType: lead?.property_type || "",
             propertyCategory: lead?.property_category || "",
-            crmId: lead?.crm_id || ""
+            crmId: lead?.crm_id || "",
+            leadId: lead?.lead_id || ""
           }
         }
       });
