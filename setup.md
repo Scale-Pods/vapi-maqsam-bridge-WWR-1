@@ -33,6 +33,7 @@ Leave the assistant field blank (per your original imp.txt note).
 6. Verify
 Cloud Run → your service → Logs tab. Make a test call and watch for:
 
+added 3 repos
 
 [Result] Phone: +971... -> Name: <FirstName or "Not Found">
 7. Future updates
